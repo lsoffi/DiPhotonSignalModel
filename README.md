@@ -13,13 +13,18 @@ source makeallHddGen.sh
 
 -> The output trees are the ones used to run the singal model machinery
 
+SigModGen and Reco are here:
+
+/eos/cms/store/group/phys_higgs/soffi/Pippone/
+
+
 ******************************************************************************************
 STEP2: 
 run the signal model machinery
 
 cd ProduceSignalmodel
 
-->Here one needs two directories called as follows where the trees produced at the previous step ahve to be put accorndigly to their names:
+->Here one needs two directories called as follows where the trees produced at the previous step have to be put accorndigly to their names:
 GenSamples76X
 RecoSamples80X
 
