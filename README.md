@@ -16,10 +16,13 @@ source makeallHddGen.sh
 ******************************************************************************************
 STEP2: 
 run the signal model machinery
+
 cd ProduceSignalmodel
+
 ->Here one needs two directories called as follows where the trees produced at the previous step ahve to be put accorndigly to their names:
 GenSamples76X
 RecoSamples80X
+
 ->Run the macro w/ the following command:
 .L Produceworkspace.C
 -> One has to call the runAllFits() macro which, for each width does:
