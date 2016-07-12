@@ -86,3 +86,7 @@ RecoSamples80X
 
   ->save all the paramterizations
     
+******************************************************************************************
+STEP 3: Run the machinery from Pasquale to get the datacards
+
+->Look at the instructions in the diphoton repository
