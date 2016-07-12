@@ -90,3 +90,24 @@ RecoSamples80X
 STEP 3: Run the machinery from Pasquale to get the datacards
 
 ->Look at the instructions in the diphoton repository
+
+-> compile the RooDCBShape.cc class:
+    
+-> Put in the macro directory the root file from the previous step hadding all the widths in the same rootfile like this:
+hadd SignalParametericShapes80X.root SignalParametericShapes80X_ws_kMpl001.root SignalParametericShapes80X_ws_kMpl01.root SignalParametericShapes80X_ws_kMpl02.root
+
+Run the datacard production as follows (for sure there is a smarter way to do so):
+
+root [0] gSystem->AddIncludePath("-I$ROOFITSYS/include");
+root [1] gROOT->GetInterpreter()->AddIncludePath("$ROOFITSYS/include"); 
+root [2] gSystem->SetIncludePath("-I$ROOFITSYS/include"); 
+root [3] gSystem->Load("$ROOFITSYS/lib/libRooFit.so") ;
+root [4] gSystem->Load("$ROOFITSYS/lib/libRooFitCore.so") ; 
+root [5] gSystem->Load("$ROOFITSYS/lib/libRooStats.so") ; 
+root [6] .L RooDCBShape.cc+
+
+common_opts="--plot-fit-bands --rescale-signal-to 1e-3 --minos-bands  --prepare-data  --do-parametric-signal-nuisances --generate-ws-bkgnbias-new"
+dir38=full_analysis_spring16v1_sync_v4_cert_275125
+coup=001
+
+./combine_maker.sh $dir38 --lumi 3.99 --fit-name cic2 $common_opts --parametric-signal-new SignalParametericShapes80X_ws_kMpl001.root --parametric-signal-acceptance  acceptance_76_spin0.json --load lumi.json --only-coups ${coup} --label spin0_wnuis 
