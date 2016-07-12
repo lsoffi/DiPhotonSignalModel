@@ -33,7 +33,7 @@
 #include "TPaveText.h"
 #include "RooGenericPdf.h"
 #include <fstream>
-#include "HiggsAnalysis/CombinedLimit/interface/RooDCBShape.h"
+#include "RooDCBShape.h"
 //#include "RooCurve.h"
 //#include "RooNumConvPdf.h"
 //#include "RooHist.h"
@@ -48,11 +48,11 @@ Int_t MAXmass= 6000;
 std::string filepostfix="";
 double signalscaler=1.00;
 
-void sigModelResponseFcnFit(RooWorkspace* w,Float_t mass,TString coupling);
-void sigModelGenFcnFit(RooWorkspace* w,Float_t mass,TString coupling);
-void sigModelShapeFcnFit(RooWorkspace* w,Float_t mass,TString coupling);
+void sigModelResponseFcnFit(RooWorkspace* w,Float_t mass,TString coupling, TString whichRel);
+void sigModelGenFcnFit(RooWorkspace* w,Float_t mass,TString coupling, TString whichRel);
+void sigModelShapeFcnFit(RooWorkspace* w001,RooWorkspace* w,Float_t mass,TString coupling,TString whichRel);
 RooDataHist* throwAsimov( double nexp, RooAbsPdf *pdf, RooRealVar *x, RooDataHist *asimov );
-void asimovDatasetFcnFit(RooWorkspace* w, Float_t mass, TString coupling);
+void asimovDatasetFcnFit(RooWorkspace* w, Float_t mass, TString coupling,TString whichRel);
 void runAllfits();
 double computePdfFHWM(RooDCBShape pdf,RooRealVar roobs, double MH);
 // Definition of the variables in the input ntuple
@@ -171,7 +171,7 @@ TPaveText* get_labelsqrt( int legendquadrant ) {
 
 
 // loading signal data and making roodatasets
-void AddSigData(RooWorkspace* w, Float_t mass, TString coupling) {
+void AddSigData(RooWorkspace* w, Float_t mass, TString coupling, TString whichRel) {
 
 
   Int_t ncat = NCAT;
@@ -185,183 +185,152 @@ void AddSigData(RooWorkspace* w, Float_t mass, TString coupling) {
   TString inDir = "./";
   TString mainCut1 = TString::Format("mgg>=300 && mgg<=6000 && mggGen>=300 && mggGen<=6000");  
   TChain* sigTreeGen = new TChain();
-  cout << "reading file gen" << TString::Format("GenSamples76X/FormSigModGenOnly_genGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass) << endl;
-  sigTreeGen->Add(TString::Format("GenSamples76X/FormSigModGenOnly_genGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass));
+  cout << "reading file gen " << "root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/SigModelGen/FormSigModGenOnly_genGenIso_kpl"+coupling+TString::Format("_M%d.root/DiPhotonTree", iMass) <<endl; 
+    
+  sigTreeGen->Add("root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/SigModelGen/FormSigModGenOnly_genGenIso_kpl"+coupling+TString::Format("_M%d.root/DiPhotonTree", iMass));
   sigTreeGen->SetTitle("sigTreeGen");
   sigTreeGen->SetName("sigTreeGen");
- 
-  TChain* sigTreeK = new TChain();
-  RooDataSet* sigWeightedK;
- 
-  if((coupling=="01" || coupling=="02")&&(mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 || mass == 3000 ||  mass ==4000) ){
-  cout << "reading file " << TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass) << endl;
-  sigTreeK->Add(TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass));
-  sigTreeK->SetTitle("sigTreeK");
-  sigTreeK->SetName("sigTreeK");
-  
-  sigWeightedK = new RooDataSet("sigWeightedK","datasetK",sigTreeK,*ntplVars,mainCut1, "puweight");
-  }else  if(coupling=="001"){
-    
-  cout << "reading file " << TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass) << endl;
-  if(mass==1000)sigTreeK->Add(TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl01_M%d.root/DiPhotonTree", iMass));
-  else sigTreeK->Add(TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass));
-  sigTreeK->SetTitle("sigTreeK");
-  sigTreeK->SetName("sigTreeK");
-  
-  sigWeightedK = new RooDataSet("sigWeightedK","datasetK",sigTreeK,*ntplVars,mainCut1, "puweight");
-  }
-  
-  TChain* sigTree = new TChain();
 
-  
-  cout << "reading file " << TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass) << endl;
-  if(mass==1000)sigTree->Add(TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl01_M%d.root/DiPhotonTree", iMass));
-  else sigTree->Add(TString::Format("RecoSamples80X/FormSigMod_cicGenIso_kpl001_M%d.root/DiPhotonTree", iMass));
-  sigTree->SetTitle("sigTree");
-  sigTree->SetName("sigTree");
- 
-
-  cout <<  "SigTree: " << endl;
-  //  sigTree->Print("V");
-  cout << " nX for SigTree:  " << sigTree->GetEntries() << endl;
-  cout << endl;
-
- 
   cout << "SigTreeGen: " << endl;
   //sigTreeGen->Print("V");
   cout << " nX for SigTreeGen:  " << sigTreeGen->GetEntries() << endl;
   cout << endl;
-
-  // -------------------------
-  // -------------------------
-  // common preselection cut on mgg and mggGen
  
-  RooDataSet sigWeighted("sigWeighted","dataset",sigTree,*ntplVars,mainCut1, "puweight"); 
-  RooDataSet sigWeightedGen("sigWeightedGen","datasetGen",sigTreeGen,*ntplVars,mainCut1, "puweight");   
-
-  // -------------------------
-  // reduced mass
-  RooFormulaVar *massReduced_formula = new RooFormulaVar("massReduced_formula","","@0-@1",RooArgList(*w->var("mgg"),*w->var("mggGen")));
-  RooRealVar* massReduced = (RooRealVar*) sigWeighted.addColumn(*massReduced_formula);
-  massReduced->SetName("massReduced");
-  massReduced->SetTitle("massReduced");
-  w->import(*massReduced);  
-  massReduced->setRange(-600., 600.);
-  
   // common preselection cut on the reduced mass
-  TString mainCut = TString::Format("(mgg-mggGen)>-600.&&(mgg-mggGen)<600."); 
-
-  
-  // -------------------------
-  // split in categories, wrt mgg - this is the dataset to be used for the convolution
-  cout << endl;
-  cout << "preparing dataset with observable mgg k = 001" << endl;
-  RooDataSet* signal[NCAT];
-  
-  for (int c=0; c<ncat; ++c) {
-    if (c==0) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==0"));
-    if (c==1) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==1"));
-    if (c==2) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==2"));
-    if (c==3) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==3"));
-
-    TString myCut;
-    w->import(*signal[c],Rename(TString::Format("SigWeight_cat%d",c)));
-    cout << "cat " << c << ", signal[c]: " << endl;
-    signal[c]->Print("V");
-    cout << "---- for category " << c << ", nX for signal[c]:  " << signal[c]->sumEntries() << endl; 
-    cout << endl;
-  }
-
-  // Create full weighted signal data set without categorization
-  RooDataSet* signalAll = (RooDataSet*) sigWeighted.reduce(RooArgList(*w->var("mgg")),mainCut);
-  w->import(*signalAll, Rename("SigWeight"));
-  cout << "now signalAll" << endl;
-  signalAll->Print("V");
-  cout << "---- nX for signalAll:  " << signalAll->sumEntries() << endl; 
-  cout << endl;
-
-  cout << "preparing dataset with observable mgg correct k" << endl;
-  RooDataSet* signalK[NCAT];
-  std::cout<<mass<<std::endl;
-  RooDataSet* signalAllK;
-  std::cout<<coupling<<std::endl;
-   if((coupling=="01" || coupling=="02") &&(mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000) ){
-     std::cout<<mass<<std::endl;
-     for (int c=0; c<ncat; ++c) {
-       if (c==0) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==0"));
-       if (c==1) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==1"));
-       if (c==2) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==2"));
-       if (c==3) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==3"));
-       
-       TString myCut;
-       w->import(*signalK[c],Rename(TString::Format("SigWeightK_cat%d",c)));
-       cout << "cat " << c << ", signalK[c]: " << endl;
-       signalK[c]->Print("V");
-       cout << "---- for category " << c << ", nX for signal[c]:  " << signalK[c]->sumEntries() << endl; 
-       cout << endl;
-     }
- 
-     // Create full weighted signal data set without categorization
-     signalAllK = (RooDataSet*) sigWeightedK->reduce(RooArgList(*w->var("mgg")),mainCut);
-     w->import(*signalAllK, Rename("SigWeightK"));
-     cout << "now signalAllK" << endl;
-     signalAllK->Print("V");
-     cout << "---- nX for signalAll:  " << signalAllK->sumEntries() << endl; 
-     cout << endl;
-   }else if(coupling=="001"){
-     for (int c=0; c<ncat; ++c) {
-       if (c==0) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==0"));
-       if (c==1) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==1"));
-       if (c==2) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==2"));
-       if (c==3) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==3"));
-       
-       TString myCut;
-       w->import(*signalK[c],Rename(TString::Format("SigWeightK_cat%d",c)));
-       cout << "cat " << c << ", signalK[c]: " << endl;
-       signalK[c]->Print("V");
-       cout << "---- for category " << c << ", nX for signal[c]:  " << signalK[c]->sumEntries() << endl; 
-       cout << endl;
-     }
- 
-     // Create full weighted signal data set without categorization
-     signalAllK = (RooDataSet*) sigWeightedK->reduce(RooArgList(*w->var("mgg")),mainCut);
-     w->import(*signalAllK, Rename("SigWeightK"));
-     cout << "now signalAllK" << endl;
-     signalAllK->Print("V");
-     cout << "---- nX for signalAll:  " << signalAllK->sumEntries() << endl; 
-     cout << endl;
-   }
- 
-  bool wantResponse = true;
-  // -------------------------
-  // split in categories, wrt massReduced - to study the detector response
-  if (wantResponse) {
-    cout << endl;
-    cout << endl;
-    cout << "preparing dataset with observable massReduced" << endl;
-    RooDataSet* signalR[NCAT];
-    for (int c=0; c<ncat; ++c) {
-      if (c==0) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==0"));
-      if (c==1) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==1"));
-      if (c==2) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==2"));
-      if (c==3) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==3"));
-
-      TString myCut;
-      w->import(*signalR[c],Rename(TString::Format("SigWeightReduced_cat%d",c)));
-    }
-    cout << endl;
-    // Create full weighted signal data set without categorization
-    RooDataSet* signalRAll = (RooDataSet*) sigWeighted.reduce(RooArgList(*w->var("massReduced")),mainCut);
-    w->import(*signalRAll, Rename("SigWeightReduced"));
-    cout << "now signalRAll" << endl;
-    signalRAll->Print("V");
-    cout << "---- nX for signalRAll:  " << signalRAll->sumEntries() << endl; 
-    cout << endl;
-  
+    TString mainCut = TString::Format("(mgg-mggGen)>-600.&&(mgg-mggGen)<600."); 
+    // -------------------------
+    bool ok80X =  coupling=="001" || ((coupling=="01" ) && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000)) || (( coupling=="02") && (mass==500 ||  mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000));
+    bool ok76X_38T = coupling=="001" || ((coupling=="01" ) && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass ==4000)) || (( coupling=="02") && (mass==500 ||  mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000));
+    bool ok76X_0T = coupling=="001" || ((coupling=="01" ) && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass ==3000)) || (( coupling=="02") && (mass==500 ||  mass==1000 || mass==1500 || mass == 750 ||  mass == 3000 ));
+    if((whichRel== "80X" && ok80X )||(whichRel== "76X_38T" && ok76X_38T )||(whichRel== "76X_0T" && ok76X_0T )){
+      TChain* sigTreeK = new TChain();
+      RooDataSet* sigWeightedK;
+    cout << "reading file " <<endl; //<< TString::Format("root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/RecoModel"+whichRel+"/FormSigMod_cicGenIso_kpl"+coupling+"_M%d.root/DiPhotonTree", iMass) << endl;
+    if((mass==1000&&whichRel=="80X") || ((mass==1000||mass==1250 || mass==1750 || mass==2250 || mass==2500 || mass==2750)&&whichRel=="76X_38T")||  ((mass==1000||mass==1250 || mass==1500 || mass==1750 || mass==2250 || mass==2500 || mass==2750|| mass==3000)&&whichRel=="76X_0T"))sigTreeK->Add("root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/RecoModel"+whichRel+"/FormSigMod_cicGenIso_kpl01"+TString::Format("_M%d.root/DiPhotonTree", iMass));
+    else sigTreeK->Add("root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/RecoModel"+whichRel+"/FormSigMod_cicGenIso_kpl"+coupling+TString::Format("_M%d.root/DiPhotonTree", iMass));
+    sigTreeK->SetTitle("sigTreeK");
+    sigTreeK->SetName("sigTreeK");
+    sigWeightedK = new RooDataSet("sigWeightedK","datasetK",sigTreeK,*ntplVars,mainCut1, "puweight");
     
+    cout << "preparing dataset with observable mgg correct k" << endl;
+    RooDataSet* signalK[NCAT];
+    std::cout<<mass<<std::endl;
+    RooDataSet* signalAllK;
+    std::cout<<coupling<<std::endl;
+    
+    for (int c=0; c<ncat; ++c) {
+      if (c==0) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==0"));
+      if (c==1) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==1"));
+      if (c==2) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==2"));
+      if (c==3) signalK[c] = (RooDataSet*) sigWeightedK->reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==3"));
+      
+      TString myCut;
+      w->import(*signalK[c],Rename(TString::Format("SigWeightK_cat%d",c)));
+      cout << "cat " << c << ", signalK[c]: " << endl;
+      signalK[c]->Print("V");
+      cout << "---- for category " << c << ", nX for signal[c]:  " << signalK[c]->sumEntries() << endl; 
+      cout << endl;
+    }
+    
+    // Create full weighted signal data set without categorization
+    signalAllK = (RooDataSet*) sigWeightedK->reduce(RooArgList(*w->var("mgg")),mainCut);
+    w->import(*signalAllK, Rename("SigWeightK"));
+    cout << "now signalAllK" << endl;
+    signalAllK->Print("V");
+    cout << "---- nX for signalAll:  " << signalAllK->sumEntries() << endl; 
+    cout << endl;
   }
 
+
+
+
+
+  if(coupling=="001"){
+     
+    TChain* sigTree = new TChain();
+    cout << "reading file " << "root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/RecoModel"+whichRel+"/FormSigMod_cicGenIso_kpl"+coupling+TString::Format("_M%d.root/DiPhotonTree", iMass) << endl;
+    if((mass==1000&&whichRel=="80X") || ((mass==1000||mass==1250 || mass==1750 || mass==2250 || mass==2500 || mass==2750)&&whichRel=="76X_38T") ||  ((mass==1000||mass==1250 || mass==1500 || mass==1750 || mass==2250 || mass==2500 || mass==2750|| mass==3000)&&whichRel=="76X_0T"))sigTree->Add("root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/RecoModel"+whichRel+"/FormSigMod_cicGenIso_kpl01_"+TString::Format("M%d.root/DiPhotonTree", iMass));
+    else sigTree->Add("root://eoscms//eos/cms/store/group/phys_higgs/soffi/Pippone/RecoModel"+whichRel+"/FormSigMod_cicGenIso_kpl001_"+TString::Format("M%d.root/DiPhotonTree", iMass));
+    sigTree->SetTitle("sigTree");
+    sigTree->SetName("sigTree");
+    cout <<  "SigTree: " << endl;
+    //  sigTree->Print("V");
+    cout << " nX for SigTree:  " << sigTree->GetEntries() << endl;
+    cout << endl;   
+    // -------------------------
+    // -------------------------
+    // common preselection cut on mgg and mggGen
+    
+    RooDataSet sigWeighted("sigWeighted","dataset",sigTree,*ntplVars,mainCut1, "puweight"); 
+    // -------------------------
+    // reduced mass
+    RooFormulaVar *massReduced_formula = new RooFormulaVar("massReduced_formula","","@0-@1",RooArgList(*w->var("mgg"),*w->var("mggGen")));
+    RooRealVar* massReduced = (RooRealVar*) sigWeighted.addColumn(*massReduced_formula);
+    massReduced->SetName("massReduced");
+    massReduced->SetTitle("massReduced");
+    w->import(*massReduced);  
+    massReduced->setRange(-600., 600.);
+    
+    // split in categories, wrt mgg - this is the dataset to be used for the convolution
+    cout << endl;
+    cout << "preparing dataset with observable mgg k = 001" << endl;
+    RooDataSet* signal[NCAT];
+    
+    for (int c=0; c<ncat; ++c) {
+      if (c==0) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==0"));
+      if (c==1) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==1"));
+      if (c==2) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==2"));
+      if (c==3) signal[c] = (RooDataSet*) sigWeighted.reduce(*w->var("mgg"),mainCut+TString::Format("&& eventClass==3"));
+      
+      TString myCut;
+      w->import(*signal[c],Rename(TString::Format("SigWeight_cat%d",c)));
+      cout << "cat " << c << ", signal[c]: " << endl;
+      signal[c]->Print("V");
+      cout << "---- for category " << c << ", nX for signal[c]:  " << signal[c]->sumEntries() << endl; 
+      cout << endl;
+    }
+    
+    // Create full weighted signal data set without categorization
+    RooDataSet* signalAll = (RooDataSet*) sigWeighted.reduce(RooArgList(*w->var("mgg")),mainCut);
+    w->import(*signalAll, Rename("SigWeight"));
+    cout << "now signalAll" << endl;
+    signalAll->Print("V");
+    cout << "---- nX for signalAll:  " << signalAll->sumEntries() << endl; 
+    cout << endl;
+    
+   
+    
+    bool wantResponse = true;
+    // -------------------------
+    // split in categories, wrt massReduced - to study the detector response
+    if (wantResponse) {
+      cout << endl;
+      cout << endl;
+      cout << "preparing dataset with observable massReduced" << endl;
+      RooDataSet* signalR[NCAT];
+      for (int c=0; c<ncat; ++c) {
+	if (c==0) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==0"));
+	if (c==1) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==1"));
+	if (c==2) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==2"));
+	if (c==3) signalR[c] = (RooDataSet*) sigWeighted.reduce(*w->var("massReduced"),mainCut+TString::Format("&& eventClass==3"));
+	
+	TString myCut;
+	w->import(*signalR[c],Rename(TString::Format("SigWeightReduced_cat%d",c)));
+      }
+      cout << endl;
+      // Create full weighted signal data set without categorization
+      RooDataSet* signalRAll = (RooDataSet*) sigWeighted.reduce(RooArgList(*w->var("massReduced")),mainCut);
+      w->import(*signalRAll, Rename("SigWeightReduced"));
+      cout << "now signalRAll" << endl;
+      signalRAll->Print("V");
+      cout << "---- nX for signalRAll:  " << signalRAll->sumEntries() << endl; 
+      cout << endl;
+      
+    
+    }
+  }
   bool wantGenLevel=true;
+  RooDataSet sigWeightedGen("sigWeightedGen","datasetGen",sigTreeGen,*ntplVars,mainCut1, "puweight");   
   // -------------------------
   // split in categories, wrt genMass - to study the theory width
   if (wantGenLevel) { 
@@ -374,7 +343,7 @@ void AddSigData(RooWorkspace* w, Float_t mass, TString coupling) {
       if (c==1) signalG[c] = (RooDataSet*) sigWeightedGen.reduce(*w->var("mggGen"),TString::Format("eventClass==1"));
       if (c==2) signalG[c] = (RooDataSet*) sigWeightedGen.reduce(*w->var("mggGen"),TString::Format("eventClass==2"));
       if (c==3) signalG[c] = (RooDataSet*) sigWeightedGen.reduce(*w->var("mggGen"),TString::Format("eventClass==3"));
-
+      
       TString myCut;
       w->import(*signalG[c],Rename(TString::Format("SigWeightGen_cat%d",c)));
     }
@@ -394,8 +363,8 @@ void AddSigData(RooWorkspace* w, Float_t mass, TString coupling) {
 
 
 // To run the analysis. Pdfs obtained here
-void runfits(const Float_t mass=750, TString coupling="001") {
-
+void runfits(const Float_t mass=750, TString coupling="001", TString whichRel="80X") {
+  gSystem->Load(".L RooDCBShape_cxx.so");
   //******************************************************************//
   //  Steps:
   //     - create signal and background data sets 
@@ -419,7 +388,7 @@ void runfits(const Float_t mass=750, TString coupling="001") {
   cout << endl; 
   cout << "Now add signal data" << endl;
   std::cout<<"------> "<<coupling<<std::endl;
-  AddSigData(w, mass, coupling);
+  AddSigData(w, mass, coupling, whichRel);
   
   TCanvas* canv = new TCanvas("canv","c",1);
   canv->cd();
@@ -427,21 +396,23 @@ void runfits(const Float_t mass=750, TString coupling="001") {
 
   bool makeWs=false; 
   if(makeWs){
-    sigModelResponseFcnFit(w, mass, coupling);
-    sigModelGenFcnFit(w, mass, coupling);
+    if(coupling=="001")sigModelResponseFcnFit(w, mass, coupling, whichRel);
+    sigModelGenFcnFit(w, mass, coupling, whichRel);
     w->Print("V");
-    TFile* f = new TFile(TString::Format("ws_ResponseAndGen_M%d_k"+coupling+".root", iMass), "RECREATE");
+    TFile* f = new TFile(TString::Format(whichRel+"/ws_ResponseAndGen_M%d_k"+coupling+".root", iMass), "RECREATE");
     f->cd();
     w->Write();
     f->Write();
     f->Close();
   }else{
-    TFile* f = TFile::Open(TString::Format("ws_ResponseAndGen_M%d_k"+coupling+".root", iMass));
+    TFile* f001 = TFile::Open(TString::Format(whichRel+"/ws_ResponseAndGen_M%d_k001.root", iMass));
+    TFile* f = TFile::Open(TString::Format(whichRel+"/ws_ResponseAndGen_M%d_k"+coupling+".root", iMass));
 
+    RooWorkspace* ws001 = (RooWorkspace*) f001->Get("HLFactory_ws"); 
     RooWorkspace* ws = (RooWorkspace*) f->Get("HLFactory_ws"); 
-    sigModelShapeFcnFit(ws, mass, coupling);
-    asimovDatasetFcnFit(ws, mass, coupling);
-    TFile* fout = new TFile(TString::Format("ws_ResponseAndGen_M%d_k"+coupling+"_final.root", iMass), "RECREATE");
+    sigModelShapeFcnFit(ws001,ws, mass, coupling, whichRel);
+    asimovDatasetFcnFit(ws, mass, coupling, whichRel);
+    TFile* fout = new TFile(TString::Format(whichRel+"/ws_ResponseAndGen_M%d_k"+coupling+"_final.root", iMass), "RECREATE");
     fout->cd();
     ws->Write();
     fout->Write();
@@ -453,17 +424,17 @@ void runfits(const Float_t mass=750, TString coupling="001") {
 
 
 
-void runAllFits(){
-  double masses[12] = {500,750, 1000,1250,1750,2000,2250,2500,2750,3000,3750,4000};// k001: 3250, 3500
-  for(int  m = 0; m< 12; m++)runfits(masses[m], "001");
-  for(int  m = 0; m< 12; m++)runfits(masses[m], "01");
-  for(int  m = 0; m< 12; m++)runfits(masses[m], "02");
+void runAllFits(TString whichRel){
+  double masses[11] = {500,750, 1000,1250,1750,2000,2250,2500,2750,3000,4000};// k001: 3250, 3500
+  for(int  m = 0; m< 11; m++)runfits(masses[m], "001", whichRel);
+  for(int  m = 0; m< 11; m++)runfits(masses[m], "01", whichRel);
+  for(int  m = 0; m< 11; m++)runfits(masses[m], "02", whichRel);
  
 }
 
 
 
-void sigModelResponseFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
+void sigModelResponseFcnFit(RooWorkspace* w, Float_t mass, TString coupling, TString whichRel) {
   int ncat = NCAT;
   RooDataSet* signal;
   RooCBShape* responsecbpos[NCAT+1];
@@ -559,13 +530,13 @@ void sigModelResponseFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
     c1->SetLogy(0);
 
 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+".png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+".png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
     
     c1->SetLogy();
     
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/responsefcnfitcbcb_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
     plotg->GetYaxis()->SetRangeUser(0.0001,plotg->GetMaximum()*0.12 );
     c1->SetLogy(0);  
 	
@@ -585,7 +556,7 @@ void sigModelResponseFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
 
 
 
-void sigModelGenFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
+void sigModelGenFcnFit(RooWorkspace* w, Float_t mass, TString coupling, TString whichRel) {
   int ncat = NCAT;
   RooDataSet* signal;
   //  RooBreitWigner* bw[NCAT+1];
@@ -663,13 +634,13 @@ void sigModelGenFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
   c1->SetLogy(0);
 
 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+".png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+".png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
     
     c1->SetLogy();
     
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mgen_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
     plotg->GetYaxis()->SetRangeUser(0.0001,plotg->GetMaximum()*0.12 );
     c1->SetLogy(0);  
 	
@@ -690,7 +661,7 @@ void sigModelGenFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
 
 
 
-void sigModelShapeFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
+void sigModelShapeFcnFit(RooWorkspace* w001, RooWorkspace* w,Float_t mass, TString coupling, TString whichRel) {
   int ncat = NCAT;
   RooDataSet* signalK;
   //  RooBreitWigner* bw[NCAT+1];
@@ -750,13 +721,13 @@ void sigModelShapeFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
     //response shape
     //cb pos                                  
     double scale=1;
-    RooFormulaVar cbpos_mean_reducedmass(TString::Format("cbpos_sig_mean_cat%d_reducedmass",c),"","@0",RooArgList(*w->var(TString::Format("reducedmass_sig_mean_cat%d",c)),*w->var("MH"))  );
-    RooFormulaVar cbpos_sigma_reducedmass(TString::Format("cbpos_sig_sigma_cat%d_reducedmass",c), "", "sqrt(@0*@0)", RooArgList(*w->var(TString::Format("reducedmass_sig_sigma_cat%d",c)),*w->var(TString::Format("mgen_sig_mean_cat%d",c))));
-    RooFormulaVar cbpos_alphacb_reducedmass(TString::Format("cbpos_sig_alphacb_cat%d_reducedmass",c),"", "@0", *w->var( TString::Format("reducedmass_sig_alphacbpos_cat%d",c)));
-    RooFormulaVar cbpos_n_reducedmass(TString::Format("cbpos_sig_n_cat%d_reducedmass",c),"", "@0", *w->var( TString::Format("reducedmass_sig_npos_cat%d",c)));
+    RooFormulaVar cbpos_mean_reducedmass(TString::Format("cbpos_sig_mean_cat%d_reducedmass",c),"","@0",RooArgList(*w001->var(TString::Format("reducedmass_sig_mean_cat%d",c)),*w->var("MH"))  );
+    RooFormulaVar cbpos_sigma_reducedmass(TString::Format("cbpos_sig_sigma_cat%d_reducedmass",c), "", "sqrt(@0*@0)", RooArgList(*w001->var(TString::Format("reducedmass_sig_sigma_cat%d",c)),*w->var(TString::Format("mgen_sig_mean_cat%d",c))));
+    RooFormulaVar cbpos_alphacb_reducedmass(TString::Format("cbpos_sig_alphacb_cat%d_reducedmass",c),"", "@0", *w001->var( TString::Format("reducedmass_sig_alphacbpos_cat%d",c)));
+    RooFormulaVar cbpos_n_reducedmass(TString::Format("cbpos_sig_n_cat%d_reducedmass",c),"", "@0", *w001->var( TString::Format("reducedmass_sig_npos_cat%d",c)));
     //cb neg
-    RooFormulaVar cbneg_n_reducedmass(TString::Format("cbneg_sig_n_cat%d_reducedmass",c),"", "@0", *w->var( TString::Format("reducedmass_sig_nneg_cat%d",c)));
-    RooFormulaVar cbneg_alphacb_reducedmass(TString::Format("cbneg_sig_alphacb_cat%d_reducedmass",c),"", "@0", *w->var( TString::Format("reducedmass_sig_alphacbneg_cat%d",c)));
+    RooFormulaVar cbneg_n_reducedmass(TString::Format("cbneg_sig_n_cat%d_reducedmass",c),"", "@0", *w001->var( TString::Format("reducedmass_sig_nneg_cat%d",c)));
+    RooFormulaVar cbneg_alphacb_reducedmass(TString::Format("cbneg_sig_alphacb_cat%d_reducedmass",c),"", "@0", *w001->var( TString::Format("reducedmass_sig_alphacbneg_cat%d",c)));
     reducedmass[c]= new  RooDCBShape(TString::Format("addpdf_cat%d_reducedmass",c), TString::Format("addpdf_cat%d_reducedmass",c), *var, cbpos_mean_reducedmass, cbpos_sigma_reducedmass,  cbneg_alphacb_reducedmass, cbpos_alphacb_reducedmass,  cbneg_n_reducedmass,cbpos_n_reducedmass) ;
     
     //convolution
@@ -790,20 +761,22 @@ void sigModelShapeFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
     w->import(*datahist_asimov);
 
     bool doPlot=false;
-    if(coupling=="001")doPlot=true;
-    if(coupling=="01" && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000))doPlot=true;
-    if(coupling=="02" && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000))doPlot=true;
+    bool ok80X =  coupling=="001" || ((coupling=="01" ) && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000)) || (( coupling=="02") && (mass==500 ||  mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000));
+    bool ok76X_38T = coupling=="001" || ((coupling=="01" ) && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass ==4000)) || (( coupling=="02") && (mass==500 ||  mass==1000 || mass==1500 || mass == 2000 ||  mass == 3000 || mass ==4000));
+    bool ok76X_0T = coupling=="001" || ((coupling=="01" ) && (mass==500 || mass==750 || mass==1000 || mass==1500 || mass == 2000 ||  mass ==3000)) || (( coupling=="02") && (mass==500 ||  mass==1000 || mass==1500 || mass == 750 ||  mass == 3000 ));
+    if((whichRel== "80X" && ok80X )||(whichRel== "76X_38T" && ok76X_38T )||(whichRel== "76X_0T" && ok76X_0T ))doPlot=true;
+    
     if(doPlot){
-    //plotting...
+      //plotting...
       if(c==0||c==1||c==2||c==3)signalK = (RooDataSet*)w->data(TString::Format("SigWeightK_cat%d",c));
       if(c==4)signalK = (RooDataSet*)w->data("SigWeightK_cat0");
-      std::cout<<"flag"<<std::endl;
+      std::cout<<"flag1"<<std::endl;
       w->Print("v");
-      std::cout<<"flag"<<std::endl;
+      std::cout<<"flag2"<<std::endl;
       RooPlot* plotgg = (w->var("mgg"))->frame(Range(massMin,massMax),Title("mass generated"),Bins(160));
       signalK->Print("v");
       signalK->plotOn(plotgg);
-      std::cout<<"flag"<<std::endl;
+      std::cout<<"flag3"<<std::endl;
       RooPlot* plotg = var->frame(Range(massMin,massMax),Title("mass generated"),Bins(160));
       RooDataSet* fakedata= conv[c]->generate(*var, signalK ->sumEntries());
       fakedata->plotOn(plotg, RooFit::Invisible());
@@ -814,7 +787,7 @@ void sigModelShapeFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
       //check parameters 
       RooArgSet* model_params = conv[c]->getParameters(*w->var("mgg")) ;
       model_params->Print("v") ;
-      std::cout<<"flag"<<std::endl;
+      std::cout<<"flag4"<<std::endl;
     
     plotg->GetXaxis()->SetTitle("m_{#gamma#gamma}[GeV]");
     plotg->GetXaxis()->SetTitleFont(42);
@@ -845,13 +818,13 @@ void sigModelShapeFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
     c1->SetLogy(0);
     
 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+".png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
-    
-    c1->SetLogy();
-    
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+".png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
+    					        
+    c1->SetLogy();			        
+    					        
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/mreco_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
     c1->SetLogy(0);  
     }
     
@@ -867,7 +840,7 @@ void sigModelShapeFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
 
 
 
-void asimovDatasetFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
+void asimovDatasetFcnFit(RooWorkspace* w, Float_t mass, TString coupling, TString whichRel) {
   int ncat = NCAT;
   RooDataHist* signal;
   RooVoigtian* voigt[NCAT+1];
@@ -1005,13 +978,13 @@ void asimovDatasetFcnFit(RooWorkspace* w, Float_t mass, TString coupling) {
     c1->SetLogy(0);
     
 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+".png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+".png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+".pdf",c,iMass)); 
     
     c1->SetLogy();
     
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
-    c1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+"_log.png",c,iMass)); 
+    c1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/fitasimov_cat%d_M%d_k"+coupling+"_log.pdf",c,iMass)); 
     c1->SetLogy(0);  
   }
 		 
@@ -1051,30 +1024,29 @@ RooDataHist* throwAsimov( double nexp, RooAbsPdf *pdf, RooRealVar *x, RooDataHis
 
 
 
-void plotAllSignalsAsimov(TString coupling, std::string fcn){
+void plotAllSignalsAsimov(TString coupling, std::string fcn, TString whichRel){
 
 
   RooDCBShape final_shape[5];
   std::cout<<"flag1"<<std::endl;
-  TFile* f500 = TFile::Open("ws_ResponseAndGen_M500_k"+coupling+"_final.root");
-  TFile* f750 = TFile::Open("ws_ResponseAndGen_M750_k"+coupling+"_final.root");
-  TFile* f1000 = TFile::Open("ws_ResponseAndGen_M1000_k"+coupling+"_final.root");
-  TFile* f1250 = TFile::Open("ws_ResponseAndGen_M1250_k"+coupling+"_final.root");
-  // TFile* f1500 = TFile::Open("ws_ResponseAndGen_M1500_k"+coupling+"_final.root");
-  TFile* f1750 = TFile::Open("ws_ResponseAndGen_M1750_k"+coupling+"_final.root");
-  TFile* f2000 = TFile::Open("ws_ResponseAndGen_M2000_k"+coupling+"_final.root");
-  TFile* f2250 = TFile::Open("ws_ResponseAndGen_M2250_k"+coupling+"_final.root");
-  TFile* f2500 = TFile::Open("ws_ResponseAndGen_M2500_k"+coupling+"_final.root");
-  TFile* f2750 = TFile::Open("ws_ResponseAndGen_M2750_k"+coupling+"_final.root");
-  TFile* f3000 = TFile::Open("ws_ResponseAndGen_M3000_k"+coupling+"_final.root");
-  //TFile* f3250 = TFile::Open("ws_ResponseAndGen_M3250_k"+coupling+"_final.root");
-  //TFile* f3500 = TFile::Open("ws_ResponseAndGen_M3500_k"+coupling+"_final.root");
-  TFile* f3750 = TFile::Open("ws_ResponseAndGen_M3750_k"+coupling+"_final.root");
-  TFile* f4000 = TFile::Open("ws_ResponseAndGen_M4000_k"+coupling+"_final.root");
+  TFile* f500 = TFile::Open(whichRel+"/ws_ResponseAndGen_M500_k"+coupling+"_final.root");
+  TFile* f750 = TFile::Open(whichRel+"/ws_ResponseAndGen_M750_k"+coupling+"_final.root");
+  TFile* f1000 = TFile::Open(whichRel+"/ws_ResponseAndGen_M1000_k"+coupling+"_final.root");
+  TFile* f1250 = TFile::Open(whichRel+"/ws_ResponseAndGen_M1250_k"+coupling+"_final.root");
+  // TFile* f1500 = TFile::Open(whichRel+"/ws_ResponseAndGen_M1500_k"+coupling+"_final.root");
+  TFile* f1750 = TFile::Open(whichRel+"/ws_ResponseAndGen_M1750_k"+coupling+"_final.root");
+  TFile* f2000 = TFile::Open(whichRel+"/ws_ResponseAndGen_M2000_k"+coupling+"_final.root");
+  TFile* f2250 = TFile::Open(whichRel+"/ws_ResponseAndGen_M2250_k"+coupling+"_final.root");
+  TFile* f2500 = TFile::Open(whichRel+"/ws_ResponseAndGen_M2500_k"+coupling+"_final.root");
+  TFile* f2750 = TFile::Open(whichRel+"/ws_ResponseAndGen_M2750_k"+coupling+"_final.root");
+  TFile* f3000 = TFile::Open(whichRel+"/ws_ResponseAndGen_M3000_k"+coupling+"_final.root");
+  //TFile* f3250 = TFile::Open(whichRel+"/ws_ResponseAndGen_M3250_k"+coupling+"_final.root");
+  //TFile* f3500 = TFile::Open(whichRel+"/ws_ResponseAndGen_M3500_k"+coupling+"_final.root");
+  //TFile* f3750 = TFile::Open(whichRel+"/ws_ResponseAndGen_M3750_k"+coupling+"_final.root");
+  TFile* f4000 = TFile::Open(whichRel+"/ws_ResponseAndGen_M4000_k"+coupling+"_final.root");
 
-  std::cout<<"flag1"<<std::endl;
+  
   RooWorkspace* ws500 = (RooWorkspace*) f500->Get("HLFactory_ws");
-  std::cout<<"flag1www"<<std::endl;
   RooWorkspace* ws750 =  (RooWorkspace*)f750->Get("HLFactory_ws");
   RooWorkspace* ws1000 =  (RooWorkspace*)f1000->Get("HLFactory_ws");
   RooWorkspace* ws1250 =  (RooWorkspace*)f1250->Get("HLFactory_ws");
@@ -1087,25 +1059,25 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
   RooWorkspace* ws3000 =  (RooWorkspace*)f3000->Get("HLFactory_ws");
   //RooWorkspace* ws3250 =  (RooWorkspace*)f3250->Get("HLFactory_ws");
   //RooWorkspace* ws3500 =  (RooWorkspace*)f3500->Get("HLFactory_ws");
-  RooWorkspace* ws3750 =  (RooWorkspace*)f3750->Get("HLFactory_ws");
+  //RooWorkspace* ws3750 =  (RooWorkspace*)f3750->Get("HLFactory_ws");
   RooWorkspace* ws4000 =  (RooWorkspace*)f4000->Get("HLFactory_ws");
   std::cout<<"flag1www"<<std::endl;
   TCanvas* cc1 = new TCanvas("cc1", "cc1",1);
   cc1->cd();
-  double m[12];
-  double mErr[12];
-  double s[12];
-  double sErr[12];
-  double aL[12];
-  double aLErr[12];
-  double aR[12];
-  double aRErr[12];
-  double nL[12];
-  double nLErr[12];
-  double nR[12];
-  double nRErr[12];
-  double masses[12] = {500, 750,1000,1250, 1750, 2000,2250,2500,2750,3000,3750,4000};//1500 3250 3500
-  double massesErr[12] = {0., 0., 0., 0,0., 0., 0., 0,0.,  0., 0, 0.};
+  double m[11];
+  double mErr[11];
+  double s[11];
+  double sErr[11];
+  double aL[11];
+  double aLErr[11];
+  double aR[11];
+  double aRErr[11];
+  double nL[11];
+  double nLErr[11];
+  double nR[11];
+  double nRErr[11];
+  double masses[11] = {500, 750,1000,1150, 1750, 2000,2250,2500,2750,3000,4000};//1500 3250 3500 3750,
+  double massesErr[11] = {0., 0., 0., 0,0., 0., 0., 0,0.,  0.,  0.};
   TString svar;
   TString spdf;
   if(fcn=="response"){
@@ -1115,7 +1087,7 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
   
   RooRealVar* MH = new RooRealVar("MH", "MH", 300, 6000);
   MH->setConstant();
-  RooWorkspace* ws = new RooWorkspace("ws_inputs");
+  RooWorkspace* ws = new RooWorkspace(whichRel+"/ws_inputs");
    RooDCBShape* sigshape[NCAT+1];
    TF1* fm[NCAT+1];
    TF1* fs[NCAT+1];
@@ -1140,13 +1112,13 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     RooDCBShape* res3000 = (RooDCBShape*) ws3000->pdf(TString::Format("dcbshape_cat%d",c));
     //RooDCBShape* res3250 = (RooDCBShape*) ws3250->pdf(TString::Format("dcbshape_cat%d",c));
     //RooDCBShape* res3500 = (RooDCBShape*) ws3500->pdf(TString::Format("dcbshape_cat%d",c));
-    RooDCBShape* res3750 = (RooDCBShape*) ws3750->pdf(TString::Format("dcbshape_cat%d",c));
+    // RooDCBShape* res3750 = (RooDCBShape*) ws3750->pdf(TString::Format("dcbshape_cat%d",c));
     RooDCBShape* res4000 = (RooDCBShape*) ws4000->pdf(TString::Format("dcbshape_cat%d",c));
    
 
    
     //compute FWHM
-    double fhwm[12];
+    double fhwm[11];
     fhwm[0] = computePdfFHWM(*res500,*ws500->var("var"), 500);
     fhwm[1] = computePdfFHWM(*res750,*ws750->var("var"), 750);
     fhwm[2] = computePdfFHWM(*res1000,*ws1000->var("var"), 1000);
@@ -1157,19 +1129,19 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     fhwm[7] = computePdfFHWM(*res2500,*ws2500->var("var"), 2500);
     fhwm[8] = computePdfFHWM(*res2750,*ws2750->var("var"), 2750);
     fhwm[9] = computePdfFHWM(*res3000,*ws3000->var("var"), 3000);
-    fhwm[10] = computePdfFHWM(*res3750,*ws3750->var("var"), 3750);
-    fhwm[11] = computePdfFHWM(*res4000,*ws4000->var("var"), 4000);
+    //fhwm[10] = computePdfFHWM(*res3750,*ws3750->var("var"), 3750);
+    fhwm[10] = computePdfFHWM(*res4000,*ws4000->var("var"), 4000);
    
-    for(int i = 0; i<12; i++)std::cout<<fhwm[i]<<" "<<masses[i]<<std::endl;
+    for(int i = 0; i<11; i++)std::cout<<fhwm[i]<<" "<<masses[i]<<std::endl;
     TCanvas* cf = new TCanvas("cf", "",1);
     cf->cd();
-    TGraph* gr = new TGraph(12,masses,fhwm);
+    TGraph* gr = new TGraph(11,masses,fhwm);
     ffhmw[c] = new TF1(TString::Format("ffhmw_cat%d",c), "pol1", 500,4000);
     gr->Fit(TString::Format("ffhmw_cat%d",c), "R");
     gr->GetXaxis()->SetTitle("m_X[GeV]");
     gr->GetYaxis()->SetTitle("FHWM [GeV]");
     gr->Draw("AP");   
-    cf->SaveAs(TString::Format("~/www/Pippone/Response_001/FHWM.png_cat%d",c));
+    cf->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_001/FHWM.png_cat%d",c));
     
 
 
@@ -1235,7 +1207,7 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     legmc->AddEntry(h3000,"M_{X} = 3000 GeV","pl");    
     //legmc->AddEntry(h3250,"M_{X} = 3250 GeV","pl");    
     //legmc->AddEntry(h3500,"M_{X} = 3500 GeV","pl");    
-    legmc->AddEntry(h3750,"M_{X} = 3750 GeV","pl");    
+    //legmc->AddEntry(h3750,"M_{X} = 3750 GeV","pl");    
     legmc->AddEntry(h4000,"M_{X} = 4000 GeV","pl");    
    
     RooDataHist* resdata500;
@@ -1281,8 +1253,8 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     // if(c==4)   resdata3250 = (RooDataHist*)ws3250->data (TString::Format("signal_asimov",c));
     //if(c<4)    resdata3500 = (RooDataHist*)ws3500->data(TString::Format("signal_asimov_cat%d",c));
     //if(c==4)   resdata3500 = (RooDataHist*)ws3500->data (TString::Format("signal_asimov",c));
-    if(c<4)    resdata3750 = (RooDataHist*)ws3750->data(TString::Format("signal_asimov_cat%d",c));
-    if(c==4)   resdata3750 = (RooDataHist*)ws3750->data (TString::Format("signal_asimov",c));
+    //if(c<4)    resdata3750 = (RooDataHist*)ws3750->data(TString::Format("signal_asimov_cat%d",c));
+    //if(c==4)   resdata3750 = (RooDataHist*)ws3750->data (TString::Format("signal_asimov",c));
     if(c<4)    resdata4000 = (RooDataHist*)ws4000->data(TString::Format("signal_asimov_cat%d",c));
     if(c==4)   resdata4000 = (RooDataHist*)ws4000->data (TString::Format("signal_asimov",c));
   
@@ -1341,10 +1313,10 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     RooPlot* pres3500 = ws3500->var("var")->frame(Range(300,5000),Title("mass asimov"),Bins(420));
     resdata3500->plotOn(pres3500,MarkerColor(kRed+9),LineColor(kRed+9));
     res3500->plotOn(pres3500,LineColor(kRed+9));
-    */RooPlot* pres3750 = ws3750->var("var")->frame(Range(300,5000),Title("mass asimov"),Bins(420));
+    RooPlot* pres3750 = ws3750->var("var")->frame(Range(300,5000),Title("mass asimov"),Bins(420));
     resdata3750->plotOn(pres3750,MarkerColor(kRed+2),LineColor(kRed+2));
     res3750->plotOn(pres3750,LineColor(kRed+2));
-    RooPlot* pres4000 = ws4000->var("var")->frame(Range(300,5000),Title("mass asimov"),Bins(420));
+    */ RooPlot* pres4000 = ws4000->var("var")->frame(Range(300,5000),Title("mass asimov"),Bins(420));
     resdata4000->plotOn(pres4000,MarkerColor(kOrange+4),LineColor(kOrange+4));
     res4000->plotOn(pres4000,LineColor(kOrange+4));
   
@@ -1365,15 +1337,15 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     pres3000->Draw("same");
     //    pres3250->Draw("same");
     //pres3500->Draw("same");
-    pres3750->Draw("same");
+    //pres3750->Draw("same");
     pres4000->Draw("same");
     std::cout<<"flag2"<<std::endl;
     legmc->Draw("same");
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d.pdf",c));
     cc1->SetLogy();
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d_log.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d_log.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d_log.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/asimovAllMasses_k"+coupling+"_cat%d_log.pdf",c));
     cc1->SetLogy(0);
 
     
@@ -1403,9 +1375,9 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     /* RooArgSet* model_params_M3250 = res3250->getParameters(*ws3250->var("var")) ;
     model_params_M3250->Print("v") ;
     RooArgSet* model_params_M3500 = res3500->getParameters(*ws3500->var("var")) ;
-    model_params_M3500->Print("v") ;*/
+    model_params_M3500->Print("v") ;
     RooArgSet* model_params_M3750 = res3750->getParameters(*ws3750->var("var")) ;
-    model_params_M3750->Print("v") ;
+    model_params_M3750->Print("v") ;*/
     RooArgSet* model_params_M4000 = res4000->getParameters(*ws4000->var("var")) ;
     model_params_M4000->Print("v") ;
 
@@ -1436,13 +1408,13 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     mErr[11] =((RooRealVar*)ws3250->var(TString::Format("dcb_m_cat%d",c)))->getError() ;
     m[12] = ((RooRealVar*)ws3500->var(TString::Format("dcb_m_cat%d",c)))->getVal()- ((RooRealVar*)ws3500->var("MH"))->getVal();
     mErr[12] =((RooRealVar*)ws3500->var(TString::Format("dcb_m_cat%d",c)))->getError() ;
-    */ m[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_m_cat%d",c)))->getVal()- ((RooRealVar*)ws3750->var("MH"))->getVal();
+     m[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_m_cat%d",c)))->getVal()- ((RooRealVar*)ws3750->var("MH"))->getVal();
     mErr[10] =((RooRealVar*)ws3750->var(TString::Format("dcb_m_cat%d",c)))->getError() ;
-    m[11] = ((RooRealVar*)ws4000->var(TString::Format("dcb_m_cat%d",c)))->getVal()- ((RooRealVar*)ws4000->var("MH"))->getVal();
-    mErr[11] =((RooRealVar*)ws4000->var(TString::Format("dcb_m_cat%d",c)))->getError() ;
-    for(int i=0;i<12;i++)std::cout<<m[i]<<" "<<mErr[i]<<std::endl;
+    */m[10] = ((RooRealVar*)ws4000->var(TString::Format("dcb_m_cat%d",c)))->getVal()- ((RooRealVar*)ws4000->var("MH"))->getVal();
+    mErr[10] =((RooRealVar*)ws4000->var(TString::Format("dcb_m_cat%d",c)))->getError() ;
+    for(int i=0;i<11;i++)std::cout<<m[i]<<" "<<mErr[i]<<std::endl;
   
-    TGraphErrors* gm = new TGraphErrors(12, masses, m, massesErr, mErr);
+    TGraphErrors* gm = new TGraphErrors(11, masses, m, massesErr, mErr);
     fm[c] = new TF1(TString::Format("fm_cat%d",c), "pol2", 500,4000);
     gm->Fit(TString::Format("fm_cat%d",c), "R");
     gm->GetYaxis()->SetTitle("#Delta m= m - m_{H} [GeV]");
@@ -1478,22 +1450,22 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     sErr[10]  =((RooRealVar*)ws3250->var(TString::Format("dcb_s_cat%d",c)))->getError() ;
    /*s[11]  ((RooRealVar*)ws3500->var(TString::Format("dcb_s_cat%d",c)))->getVal();
      sErr[11]  =((RooRealVar*)ws3500->var(TString::Format("dcb_s_cat%d",c)))->getError() ;
-    */
+    
     s[10]   = ((RooRealVar*)ws3750->var(TString::Format("dcb_s_cat%d",c)))->getVal();
-    sErr[10]  =((RooRealVar*)ws3750->var(TString::Format("dcb_s_cat%d",c)))->getError() ;
-   s[11]=  ((RooRealVar*)ws4000->var(TString::Format("dcb_s_cat%d",c)))->getVal();
-   sErr[11]  =((RooRealVar*)ws4000->var(TString::Format("dcb_s_cat%d",c)))->getError() ;
-    for(int i=0;i<12;i++)std::cout<<s[i]<<" "<<sErr[i]<<std::endl;
+    sErr[10]  =((RooRealVar*)ws3750->var(TString::Format("dcb_s_cat%d",c)))->getError() ;*/
+   s[10]=  ((RooRealVar*)ws4000->var(TString::Format("dcb_s_cat%d",c)))->getVal();
+   sErr[10]  =((RooRealVar*)ws4000->var(TString::Format("dcb_s_cat%d",c)))->getError() ;
+    for(int i=0;i<11;i++)std::cout<<s[i]<<" "<<sErr[i]<<std::endl;
    
-    TGraphErrors* gs = new TGraphErrors(12, masses, s, massesErr, sErr);
+    TGraphErrors* gs = new TGraphErrors(11, masses, s, massesErr, sErr);
     gs->GetYaxis()->SetTitle("#sigma [GeV]");
     gs->GetXaxis()->SetTitle("m_{X}[GeV]");
     fs[c] = new TF1(TString::Format("fs_cat%d",c), "pol2", 500,4000);
     gs->Fit(TString::Format("fs_cat%d",c), "R");
     gs->Draw("APE");
     fs[c]->Draw("same");
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/sigmaVsMass_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/sigmaVsMass_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/sigmaVsMass_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/sigmaVsMass_cat%d.pdf",c));
     
     aL[0] = ((RooRealVar*)ws500->var(TString::Format("dcb_aL_cat%d",c)))->getVal();
     aLErr[0] =((RooRealVar*)ws500->var(TString::Format("dcb_aL_cat%d",c)))->getError() ;
@@ -1521,23 +1493,23 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     aLErr[10] =((RooRealVar*)ws3250->var(TString::Format("dcb_aL_cat%d",c)))->getError() ;
     aL[11] ((RooRealVar*)ws3500->var(TString::Format("dcb_aL_cat%d",c)))->getVal();
     aLErr[11] =((RooRealVar*)ws3500->var(TString::Format("dcb_aL_cat%d",c)))->getError() ;
-    */aL[10]  = ((RooRealVar*)ws3750->var(TString::Format("dcb_aL_cat%d",c)))->getVal();
+    aL[10]  = ((RooRealVar*)ws3750->var(TString::Format("dcb_aL_cat%d",c)))->getVal();
     aLErr[10] =((RooRealVar*)ws3750->var(TString::Format("dcb_aL_cat%d",c)))->getError() ;
-    aL[11]= ((RooRealVar*)ws4000->var(TString::Format("dcb_aL_cat%d",c)))->getVal();
-    aLErr[11] =((RooRealVar*)ws4000->var(TString::Format("dcb_aL_cat%d",c)))->getError() ;
+   */aL[10]= ((RooRealVar*)ws4000->var(TString::Format("dcb_aL_cat%d",c)))->getVal();
+    aLErr[10] =((RooRealVar*)ws4000->var(TString::Format("dcb_aL_cat%d",c)))->getError() ;
     
     
-    for(int i=0;i<12;i++)std::cout<<aL[i]<<" "<<aLErr[i]<<std::endl;
+    for(int i=0;i<11;i++)std::cout<<aL[i]<<" "<<aLErr[i]<<std::endl;
   
-    TGraphErrors* gaL = new TGraphErrors(12, masses, aL, massesErr, aLErr);
+    TGraphErrors* gaL = new TGraphErrors(11, masses, aL, massesErr, aLErr);
     gaL->GetYaxis()->SetTitle("#alpha_{L} [GeV]");
     gaL->GetXaxis()->SetTitle("m_{X}[GeV]");
     faL[c] = new TF1(TString::Format("faL_cat%d",c), "pol2", 500,4000);
     gaL->Fit(TString::Format("faL_cat%d",c), "R");
     gaL->Draw("APE");
     faL[c]->Draw("same");
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/aLVsMass_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/aLVsMass_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/aLVsMass_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/aLVsMass_cat%d.pdf",c));
 
       
     aR[0] = ((RooRealVar*)ws500->var(TString::Format("dcb_aR_cat%d",c)))->getVal();
@@ -1566,13 +1538,13 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     aRErr[11] =((RooRealVar*)ws3250->var(TString::Format("dcb_aR_cat%d",c)))->getError() ;
     aR[12] = ((RooRealVar*)ws3500->var(TString::Format("dcb_aR_cat%d",c)))->getVal();
     aRErr[12] =((RooRealVar*)ws3500->var(TString::Format("dcb_aR_cat%d",c)))->getError() ;
-    */aR[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_aR_cat%d",c)))->getVal();
+    aR[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_aR_cat%d",c)))->getVal();
     aRErr[10] =((RooRealVar*)ws3750->var(TString::Format("dcb_aR_cat%d",c)))->getError() ;
-    aR[11] = ((RooRealVar*)ws4000->var(TString::Format("dcb_aR_cat%d",c)))->getVal();
-    aRErr[11] =((RooRealVar*)ws4000->var(TString::Format("dcb_aR_cat%d",c)))->getError() ;
-    for(int i=0;i<12;i++)std::cout<<aR[i]<<" "<<aRErr[i]<<std::endl;
+    */ aR[10] = ((RooRealVar*)ws4000->var(TString::Format("dcb_aR_cat%d",c)))->getVal();
+    aRErr[10] =((RooRealVar*)ws4000->var(TString::Format("dcb_aR_cat%d",c)))->getError() ;
+    for(int i=0;i<11;i++)std::cout<<aR[i]<<" "<<aRErr[i]<<std::endl;
   
-    TGraphErrors* gaR = new TGraphErrors(12, masses, aR, massesErr, aRErr);
+    TGraphErrors* gaR = new TGraphErrors(11, masses, aR, massesErr, aRErr);
     gaR->GetYaxis()->SetTitle("#alpha_{R} [GeV]");
     gaR->GetXaxis()->SetTitle("m_{#gamma#gamma} [GeV]");
     faR[c] = new TF1(TString::Format("faR_cat%d",c), "pol2", 500,4000);
@@ -1580,8 +1552,8 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     gaR->Draw("APE");
     faR[c]->Draw("same");
     
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/aRVsMass_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/aRVsMass_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/aRVsMass_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/aRVsMass_cat%d.pdf",c));
  
     nR[0] = ((RooRealVar*)ws500->var(TString::Format("dcb_nR_cat%d",c)))->getVal();
     nRErr[0] =((RooRealVar*)ws500->var(TString::Format("dcb_nR_cat%d",c)))->getError() ;
@@ -1609,21 +1581,21 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     nRErr[11] =((RooRealVar*)ws3250->var(TString::Format("dcb_nR_cat%d",c)))->getError() ;
     nR[12] = ((RooRealVar*)ws3500->var(TString::Format("dcb_nR_cat%d",c)))->getVal();
     nRErr[12] =((RooRealVar*)ws3500->var(TString::Format("dcb_nR_cat%d",c)))->getError() ;
-    */nR[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_nR_cat%d",c)))->getVal();
+    nR[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_nR_cat%d",c)))->getVal();
     nRErr[10] =((RooRealVar*)ws3750->var(TString::Format("dcb_nR_cat%d",c)))->getError() ;
-    nR[11] = ((RooRealVar*)ws4000->var(TString::Format("dcb_nR_cat%d",c)))->getVal();
-    nRErr[11] =((RooRealVar*)ws4000->var(TString::Format("dcb_nR_cat%d",c)))->getError() ;
-    for(int i=0;i<12;i++)std::cout<<nR[i]<<" "<<nRErr[i]<<std::endl;
+    */nR[10] = ((RooRealVar*)ws4000->var(TString::Format("dcb_nR_cat%d",c)))->getVal();
+    nRErr[10] =((RooRealVar*)ws4000->var(TString::Format("dcb_nR_cat%d",c)))->getError() ;
+    for(int i=0;i<11;i++)std::cout<<nR[i]<<" "<<nRErr[i]<<std::endl;
   
-    TGraphErrors* gnR = new TGraphErrors(12, masses, nR, massesErr, nRErr);
+    TGraphErrors* gnR = new TGraphErrors(11, masses, nR, massesErr, nRErr);
     gnR->GetYaxis()->SetTitle("n_{R} [GeV]");
     gnR->GetXaxis()->SetTitle("m_{X}[GeV]");
     fnR[c] = new TF1(TString::Format("fnR_cat%d",c), "pol2", 500,4000);
     gnR->Fit(TString::Format("fnR_cat%d",c), "R");
     gnR->Draw("APE");
     fnR[c]->Draw("same");   
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/nRVsMass_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/nRVsMass_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/nRVsMass_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/nRVsMass_cat%d.pdf",c));
 
     nL[0] = ((RooRealVar*)ws500->var(TString::Format("dcb_nL_cat%d",c)))->getVal();
     nLErr[0] =((RooRealVar*)ws500->var(TString::Format("dcb_nL_cat%d",c)))->getError() ;
@@ -1651,20 +1623,20 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     nLErr[11] =((RooRealVar*)ws3250->var(TString::Format("dcb_nL_cat%d",c)))->getError();
     nL[12] = ((RooRealVar*)ws3500->var(TString::Format("dcb_nL_cat%d",c)))->getVal();
     nLErr[12] =((RooRealVar*)ws3500->var(TString::Format("dcb_nL_cat%d",c)))->getError();
-    */nL[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_nL_cat%d",c)))->getVal();
+    nL[10] = ((RooRealVar*)ws3750->var(TString::Format("dcb_nL_cat%d",c)))->getVal();
     nLErr[10] =((RooRealVar*)ws3750->var(TString::Format("dcb_nL_cat%d",c)))->getError();
-    nL[11] = ((RooRealVar*)ws4000->var(TString::Format("dcb_nL_cat%d",c)))->getVal();
-    nLErr[11] =((RooRealVar*)ws4000->var(TString::Format("dcb_nL_cat%d",c)))->getError() ;
-    for(int i=0;i<12;i++)std::cout<<nL[i]<<" "<<nLErr[i]<<std::endl;
-    TGraphErrors* gnL = new TGraphErrors(12, masses, nL, massesErr, nLErr);
+    */ nL[10] = ((RooRealVar*)ws4000->var(TString::Format("dcb_nL_cat%d",c)))->getVal();
+    nLErr[10] =((RooRealVar*)ws4000->var(TString::Format("dcb_nL_cat%d",c)))->getError() ;
+    for(int i=0;i<11;i++)std::cout<<nL[i]<<" "<<nLErr[i]<<std::endl;
+    TGraphErrors* gnL = new TGraphErrors(11, masses, nL, massesErr, nLErr);
     gnL->GetYaxis()->SetTitle("n_{L} [GeV]");
     gnL->GetXaxis()->SetTitle("m_{X} [GeV]");
     fnL[c] = new TF1(TString::Format("fnL_cat%d",c), "pol2", 500,4000);
     gnL->Fit(TString::Format("fnL_cat%d",c), "R");
     gnL->Draw("APE");
     fnL[c]->Draw("same");
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/nLVsMass_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/nLVsMass_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/nLVsMass_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/nLVsMass_cat%d.pdf",c));
     
 
 
@@ -1748,7 +1720,7 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     RooFormulaVar* DeltaSmearEBEE = new RooFormulaVar("DeltaSmearEBEE", "2*@0*@1*@2*@2",  RooArgList(*s0_EBEE,*deltaSmear,*MH));
     RooFormulaVar* DeltaSmearAll = new RooFormulaVar("DeltaSmearAll", "2*@0*@1*@2*@2",  RooArgList(*s0_All,*deltaSmear,*MH));
     RooPlot* plot = (RooPlot*)mgg->frame(Range(300, 6000));
-    RooDCBShape* fin_shape[12];
+    RooDCBShape* fin_shape[11];
     RooFormulaVar* mean; 
     RooFormulaVar* sigma0;
     RooFormulaVar* sigma; 
@@ -1785,7 +1757,7 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
 
     }
     std::cout<<"flaggggg"<<std::endl;
-    for(int M =0; M<12; M++){
+    for(int M =0; M<11; M++){
       
       MH->setVal(masses[M]);
       // MH->setConstant();
@@ -1821,11 +1793,11 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
     plot->GetXaxis()->SetTitle("m_{#gamma#gamma} [GeV]");
     plot->Draw();
     legmc->Draw("same");
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/final_shapes_k001_cat%d.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/final_shapes_k001_cat%d.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/final_shapes_k001_cat%d.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/final_shapes_k001_cat%d.pdf",c));
     cc1->SetLogy(); 
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/final_shapes_k001_cat%d_log.png",c));
-    cc1->SaveAs(TString::Format("~/www/Pippone/Response_"+coupling+"/final_shapes_k001_cat%d_log.pdf",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/final_shapes_k001_cat%d_log.png",c));
+    cc1->SaveAs(TString::Format("~/www/Pippone/"+whichRel+"/Response_"+coupling+"/final_shapes_k001_cat%d_log.pdf",c));
     
     
     if(c==0)    sigshape[c] =  new RooDCBShape("SignalShape_kMpl"+coupling+"_EBEB","SignalShape_kMpl"+coupling+"_EBEB" ,*mgg, *mean, *sigma,  *aL, *aR,  *nL,*nR) ;
@@ -1845,7 +1817,7 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
    ws->import(*FHWM_EBEB);
    ws->import(*FHWM_EBEE);
   
-   TFile* fout= new TFile("SignalParametericShapes80X_ws_kMpl"+coupling+".root", "RECREATE");
+   TFile* fout= new TFile(whichRel+"/SignalParametericShapes80X_ws_kMpl"+coupling+".root", "RECREATE");
    fout->cd();
    fm[0]->Write();       fm[1]->Write(); 
    fs[0]->Write(); 	 fs[1]->Write(); 
@@ -1906,7 +1878,7 @@ void plotAllSignalsAsimov(TString coupling, std::string fcn){
 }
 
 
-void testShapes(TString coupling){
+void testShapes(TString coupling, TString whichRel){
   TFile* fin= TFile::Open("SignalParametericShapes80X_ws_kMpl"+coupling+".root");
   RooWorkspace* ws =( RooWorkspace*) fin->Get("SignalParametricShapes_kMpl"+coupling);
 
@@ -1920,7 +1892,7 @@ void testShapes(TString coupling){
       MH->setVal(masses[m]);  
       
       int iMass = abs(masses[m]);
-      TFile* ftrue = TFile::Open(TString::Format("ws_ResponseAndGen_M%d_k"+coupling+".root", iMass));
+      TFile* ftrue = TFile::Open(TString::Format(whichRel+"/ws_ResponseAndGen_M%d_k"+coupling+".root", iMass));
       RooWorkspace* wtrue = (RooWorkspace*)ftrue->Get("HLFactory_ws");
       RooDataSet* data = (RooDataSet*)wtrue->data(TString::Format("SigWeightK_cat%d",c));
       data->Print("v");
@@ -2284,261 +2256,69 @@ double computePdfFHWM(RooDCBShape pdf,RooRealVar roobs, double MH){
 
 
 
-void plotAllSignalsGen(TString coupling, std::string fcn){
+void plotAllSignalsRels(TString coupling, TString mass){
   std::cout<<"flag1"<<std::endl;
-  TFile* f500 = TFile::Open("ws_ResponseAndGen_M500_k"+coupling+".root");
-  TFile* f750 = TFile::Open("ws_ResponseAndGen_M750_k"+coupling+".root");
-  TFile* f1000 = TFile::Open("ws_ResponseAndGen_M1000_k"+coupling+".root");
-  TFile* f1250 = TFile::Open("ws_ResponseAndGen_M1250_k"+coupling+".root");
-  TFile* f1500 = TFile::Open("ws_ResponseAndGen_M1500_k"+coupling+".root");
-  TFile* f1750 = TFile::Open("ws_ResponseAndGen_M1750_k"+coupling+".root");
-  TFile* f2000 = TFile::Open("ws_ResponseAndGen_M2000_k"+coupling+".root");
-  TFile* f2250 = TFile::Open("ws_ResponseAndGen_M2250_k"+coupling+".root");
-  TFile* f2500 = TFile::Open("ws_ResponseAndGen_M2500_k"+coupling+".root");
-  TFile* f2750 = TFile::Open("ws_ResponseAndGen_M2750_k"+coupling+".root");
-  TFile* f3000 = TFile::Open("ws_ResponseAndGen_M3000_k"+coupling+".root");
-  //TFile* f3250 = TFile::Open("ws_ResponseAndGen_M3250_k"+coupling+".root");
-  //TFile* f3500 = TFile::Open("ws_ResponseAndGen_M3500_k"+coupling+".root");
-  TFile* f3750 = TFile::Open("ws_ResponseAndGen_M3750_k"+coupling+".root");
-  TFile* f4000 = TFile::Open("ws_ResponseAndGen_M4000_k"+coupling+".root");
-
-  std::cout<<"flag1"<<std::endl;
-  RooWorkspace* ws500 = (RooWorkspace*) f500->Get("HLFactory_ws");
-  RooWorkspace* ws750 =  (RooWorkspace*)f750->Get("HLFactory_ws");
-  RooWorkspace* ws1000 =  (RooWorkspace*)f1000->Get("HLFactory_ws");
-  RooWorkspace* ws1250 =  (RooWorkspace*)f1250->Get("HLFactory_ws");
-  RooWorkspace* ws1500 =  (RooWorkspace*)f1500->Get("HLFactory_ws");
-  RooWorkspace* ws1750 =  (RooWorkspace*)f1750->Get("HLFactory_ws");
-  RooWorkspace* ws2000 =  (RooWorkspace*)f2000->Get("HLFactory_ws");
-  RooWorkspace* ws2250 =  (RooWorkspace*)f2250->Get("HLFactory_ws");
-  RooWorkspace* ws2500 =  (RooWorkspace*)f2500->Get("HLFactory_ws");
-  RooWorkspace* ws2750 =  (RooWorkspace*)f2750->Get("HLFactory_ws");
-  RooWorkspace* ws3000 =  (RooWorkspace*)f3000->Get("HLFactory_ws");
-  //RooWorkspace* ws3250 =  (RooWorkspace*)f3250->Get("HLFactory_ws");
-  //RooWorkspace* ws3500 =  (RooWorkspace*)f3500->Get("HLFactory_ws");
-  RooWorkspace* ws3750 =  (RooWorkspace*)f3750->Get("HLFactory_ws");
-  RooWorkspace* ws4000 =  (RooWorkspace*)f4000->Get("HLFactory_ws");
+  TFile* f80x = TFile::Open("80X/ws_ResponseAndGen_M"+mass+"_k"+coupling+"_final.root");
+  TFile* f76x_38T = TFile::Open("76X_38T/ws_ResponseAndGen_M"+mass+"_k"+coupling+"_final.root");
+  TFile* f76x_0T = TFile::Open("76X_0T/ws_ResponseAndGen_M"+mass+"_k"+coupling+"_final.root");
+ 
+  RooWorkspace* ws80x = (RooWorkspace*) f80x->Get("HLFactory_ws");
+  RooWorkspace* ws76x_38T =  (RooWorkspace*)f76x_38T->Get("HLFactory_ws");
+  RooWorkspace* ws76x_0T =  (RooWorkspace*)f76x_0T->Get("HLFactory_ws");
 
   TCanvas* c1 = new TCanvas("c1", "c1",1);
   c1->cd();
 
   TString svar;
   TString spdf;
-  if(fcn=="response"){
-    spdf= "responseaddpdf";
-    svar= "responseaddpdf";
-  }
-   for(int c =4; c< NCAT+1; c++){
+  
+  for(int c =0; c< NCAT+1; c++){
     if(c==2||c==3)continue;
     std::cout<<"flag1"<<std::endl;
-    RooDCBShape* res500 = (RooDCBShape*) ws500->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res750 = (RooDCBShape*) ws750->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res1000 = (RooDCBShape*) ws1000->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res1250 = (RooDCBShape*) ws1250->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res1500 = (RooDCBShape*) ws1500->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res1750 = (RooDCBShape*) ws1750->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res2000 = (RooDCBShape*) ws2000->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res2250 = (RooDCBShape*) ws2250->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res2500 = (RooDCBShape*) ws2500->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res2750 = (RooDCBShape*) ws2750->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res3000 = (RooDCBShape*) ws3000->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    //RooDCBShape* res3250 = (RooDCBShape*) ws3250->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    //RooDCBShape* res3500 = (RooDCBShape*) ws3500->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res3750 = (RooDCBShape*) ws3750->pdf(TString::Format("mgenaddpdf_cat%d",c));
-    RooDCBShape* res4000 = (RooDCBShape*) ws4000->pdf(TString::Format("mgenaddpdf_cat%d",c));
+    RooDCBShape* res80x = (RooDCBShape*) ws80x->pdf(TString::Format("dcbshape_cat%d",c));
+    RooDCBShape* res76x_38T = (RooDCBShape*) ws76x_38T->pdf(TString::Format("dcbshape_cat%d",c));
+    RooDCBShape* res76x_0T = (RooDCBShape*) ws76x_0T->pdf(TString::Format("dcbshape_cat%d",c));
    
-    TH1F* h500=new TH1F("h500","",460, 300,6000);
-    h500->SetLineColor(kBlue);
-    h500->SetMarkerColor(kBlue);
-    TH1F* h750=new TH1F("h750","",460, 300,6000);
-    h750->SetLineColor(kMagenta);
-    h750->SetMarkerColor(kMagenta);
-    TH1F* h1000=new TH1F("h1000","",460, 300,6000);
-    h1000->SetLineColor(kRed);
-    h1000->SetMarkerColor(kRed);
-    TH1F* h1250=new TH1F("h1250","",460, 300,6000);
-    h1250->SetLineColor(kViolet);
-    h1250->SetMarkerColor(kViolet);
-    TH1F* h1500=new TH1F("h1500","",460, 300,6000);
-    h1500->SetLineColor(kPink);
-    h1500->SetMarkerColor(kPink);
-    TH1F* h1750=new TH1F("h1750","",460, 300,6000);
-    h1750->SetLineColor(kGreen);
-    h1750->SetMarkerColor(kGreen);
-    TH1F* h2000=new TH1F("h2000","",460, 300,6000);
-    h2000->SetLineColor(kOrange);
-    h2000->SetMarkerColor(kOrange);
-    TH1F* h2250=new TH1F("h2250","",460, 300,6000);
-    h2250->SetLineColor(kBlack);
-    h2250->SetMarkerColor(kBlack);
-    TH1F* h2500=new TH1F("h2500","",460, 300,6000);
-    h2500->SetLineColor(kAzure);
-    h2500->SetMarkerColor(kAzure);
-    TH1F* h2750=new TH1F("h2750","",460, 300,6000);
-    h2750->SetLineColor(kGray);
-    h2750->SetMarkerColor(kGray);
-    TH1F* h3000=new TH1F("h3000","",460, 300,6000);
-    h3000->SetLineColor(kSpring);
-    h3000->SetMarkerColor(kSpring);
-    TH1F* h3250=new TH1F("h3250","",460, 300,6000);
-    h3250->SetLineColor(kBlue+8);
-    h3250->SetMarkerColor(kBlue+8);
-    TH1F* h3500=new TH1F("h3500","",460, 300,6000);
-    h3500->SetLineColor(kRed+9);
-    h3500->SetMarkerColor(kRed+9);
-    TH1F* h3750=new TH1F("h3750","",460, 300,6000);
-    h3750->SetLineColor(kRed+2);
-    h3750->SetMarkerColor(kRed+2);
-    TH1F* h4000=new TH1F("h4000","",460, 300,6000);
-    h4000->SetLineColor(kOrange+4);
-    h4000->SetMarkerColor(kOrange+4);
+    TH1F* h80x=new TH1F("h80x","",460, 300,6000);
+    h80x->SetLineColor(kBlue);
+    h80x->SetLineWidth(2);
+    h80x->SetMarkerColor(kBlue);
+    TH1F* h76x_38T=new TH1F("h76x_38T","",460, 300,6000);
+    h76x_38T->SetLineColor(kMagenta);
+    h76x_38T->SetLineWidth(2);
+    h76x_38T->SetMarkerColor(kMagenta);
+    TH1F* h76x_0T=new TH1F("h76x_0T","",460, 300,6000);
+    h76x_0T->SetLineColor(kSpring+9);
+    h76x_0T->SetLineWidth(2);
+    h76x_0T->SetMarkerColor(kSpring+9);
+    
     TLegend* legmc = new TLegend(0.58, 0.54, 0.85, 0.9, "", "bNDC");
     legmc->SetTextFont(42);
     legmc->SetBorderSize(0);
     legmc->SetFillStyle(0);
-    legmc->AddEntry(h500,"M_{X} = 500 GeV","pl");    
-    legmc->AddEntry(h750,"M_{X} = 750 GeV","pl");    
-    legmc->AddEntry(h1000,"M_{X} = 1000 GeV","pl");    
-    legmc->AddEntry(h1250,"M_{X} = 1250 GeV","pl");    
-    legmc->AddEntry(h1500,"M_{X} = 1500 GeV","pl");    
-    legmc->AddEntry(h1750,"M_{X} = 1750 GeV","pl");    
-    legmc->AddEntry(h2000,"M_{X} = 2000 GeV","pl");    
-    legmc->AddEntry(h2250,"M_{X} = 2250 GeV","pl");    
-    legmc->AddEntry(h2500,"M_{X} = 2500 GeV","pl");    
-    legmc->AddEntry(h2750,"M_{X} = 2750 GeV","pl");    
-    legmc->AddEntry(h3000,"M_{X} = 3000 GeV","pl");    
-    //legmc->AddEntry(h3250,"M_{X} = 3250 GeV","pl");    
-    //legmc->AddEntry(h3500,"M_{X} = 3500 GeV","pl");    
-    legmc->AddEntry(h3750,"M_{X} = 3750 GeV","pl");    
-    legmc->AddEntry(h4000,"M_{X} = 4000 GeV","pl");    
+    legmc->AddEntry(h80x," 80X","l");    
+    legmc->AddEntry(h76x_38T,"76X 3.8T","l");    
+    legmc->AddEntry(h76x_0T,"76X 0T","l");    
+     
    
-    RooDataSet* resdata500;
-    RooDataSet* resdata750;
-    RooDataSet* resdata1000;
-    RooDataSet* resdata1250;
-    RooDataSet* resdata1500;
-    RooDataSet* resdata1750;
-    RooDataSet* resdata2000;
-    RooDataSet* resdata2250;
-    RooDataSet* resdata2500;
-    RooDataSet* resdata2750;
-    RooDataSet* resdata3000;
-    RooDataSet* resdata3250;
-    RooDataSet* resdata3500;
-    RooDataSet* resdata3750;
-    RooDataSet* resdata4000;
-
-    if(c<4)    resdata500 = (RooDataSet*)ws500->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata500 = (RooDataSet*)ws500->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata750 = (RooDataSet*)ws750->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata750 = (RooDataSet*)ws750->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata1000 = (RooDataSet*)ws1000->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata1000 = (RooDataSet*)ws1000->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata1250 = (RooDataSet*)ws1250->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata1250 = (RooDataSet*)ws1250->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata1500 = (RooDataSet*)ws1500->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata1500 = (RooDataSet*)ws1500->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata1750 = (RooDataSet*)ws1750->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata1750 = (RooDataSet*)ws1750->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata2000 = (RooDataSet*)ws2000->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata2000 = (RooDataSet*)ws2000->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata2250 = (RooDataSet*)ws2250->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata2250 = (RooDataSet*)ws2250->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata2500 = (RooDataSet*)ws2500->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata2500 = (RooDataSet*)ws2500->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata2750 = (RooDataSet*)ws2750->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata2750 = (RooDataSet*)ws2750->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata3000 = (RooDataSet*)ws3000->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata3000 = (RooDataSet*)ws3000->data (TString::Format("SigWeightGen",c));
-    //if(c<4)    resdata3250 = (RooDataSet*)ws3250->data(TString::Format("SigWeightGen_cat%d",c));
-    // if(c==4)   resdata3250 = (RooDataSet*)ws3250->data (TString::Format("SigWeightGen",c));
-    //if(c<4)    resdata3500 = (RooDataSet*)ws3500->data(TString::Format("SigWeightGen_cat%d",c));
-    //if(c==4)   resdata3500 = (RooDataSet*)ws3500->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata3750 = (RooDataSet*)ws3750->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata3750 = (RooDataSet*)ws3750->data (TString::Format("SigWeightGen",c));
-    if(c<4)    resdata4000 = (RooDataSet*)ws4000->data(TString::Format("SigWeightGen_cat%d",c));
-    if(c==4)   resdata4000 = (RooDataSet*)ws4000->data (TString::Format("SigWeightGen",c));
-  
-
 
     std::cout<<"flag2"<<std::endl;
-    RooPlot* pres500 = ws500->var("mggGen")->frame(Title("mass gen"),Bins(420));
-    std::cout<<"flag3"<<std::endl;
-    resdata500->plotOn(pres500,MarkerColor(kBlue),LineColor(kBlue));
-    std::cout<<"flag3"<<std::endl;
-    res500->plotOn(pres500,LineColor(kBlue));
-    std::cout<<"flag3"<<std::endl;
-    RooPlot* pres750 = ws750->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata750->plotOn(pres750,MarkerColor(kMagenta),LineColor(kMagenta));
-    res750->plotOn(pres750,LineColor(kMagenta));
+    RooPlot* pres = ws80x->var("var")->frame(Title("mass "),Bins(420));
+    res80x->plotOn(pres,LineColor(kBlue));
+    res76x_38T->plotOn(pres,LineColor(kMagenta));
+    res76x_0T->plotOn(pres,LineColor(kSpring+9));
     std::cout<<"flag2"<<std::endl;
-    RooPlot* pres1000 = ws1000->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata1000->plotOn(pres1000,MarkerColor(kRed),LineColor(kRed));
-    res1000->plotOn(pres1000,LineColor(kRed));
-    RooPlot* pres1250 = ws1250->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata1250->plotOn(pres1250,MarkerColor(kViolet),LineColor(kViolet));
-    res1250->plotOn(pres1250,LineColor(kViolet));
-    RooPlot* pres1500 = ws1500->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata1500->plotOn(pres1500,MarkerColor(kPink),LineColor(kPink));
-    res1500->plotOn(pres1500,LineColor(kPink));
-    RooPlot* pres1750 = ws1750->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata1750->plotOn(pres1750,MarkerColor(kGreen),LineColor(kGreen));
-    res1750->plotOn(pres1750,LineColor(kGreen));
-    RooPlot* pres2000 = ws2000->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata2000->plotOn(pres2000,MarkerColor(kOrange),LineColor(kOrange));
-    res2000->plotOn(pres2000,LineColor(kOrange));
+   
     std::cout<<"flag2"<<std::endl;
-    RooPlot* pres2250 = ws2250->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata2250->plotOn(pres2250,MarkerColor(kBlack),LineColor(kBlack));
-    res2250->plotOn(pres2250,LineColor(kBlack));
-    RooPlot* pres2500 = ws2500->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata2500->plotOn(pres2500,MarkerColor(kAzure),LineColor(kAzure));
-    res2500->plotOn(pres2500,LineColor(kAzure));
-    RooPlot* pres2750 = ws2750->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata2750->plotOn(pres2750,MarkerColor(kGray),LineColor(kGray));
-    res2750->plotOn(pres2750,LineColor(kGray));
-    RooPlot* pres3000 = ws3000->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata3000->plotOn(pres3000,MarkerColor(kSpring),LineColor(kSpring));
-    res3000->plotOn(pres3000,LineColor(kSpring));
-    std::cout<<"flag2"<<std::endl;
-    /*RooPlot* pres3250 = ws3250->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata3250->plotOn(pres3250,MarkerColor(kBlue+8),LineColor(kBlue+8));
-    res3250->plotOn(pres3250,LineColor(kBlue+8));
-    RooPlot* pres3500 = ws3500->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata3500->plotOn(pres3500,MarkerColor(kRed+9),LineColor(kRed+9));
-    res3500->plotOn(pres3500,LineColor(kRed+9));
-    */RooPlot* pres3750 = ws3750->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata3750->plotOn(pres3750,MarkerColor(kRed+2),LineColor(kRed+2));
-    res3750->plotOn(pres3750,LineColor(kRed+2));
-    RooPlot* pres4000 = ws4000->var("mggGen")->frame(Range(300,5000),Title("mass gen"),Bins(420));
-    resdata4000->plotOn(pres4000,MarkerColor(kOrange+4),LineColor(kOrange+4));
-    res4000->plotOn(pres4000,LineColor(kOrange+4));
-  
-    std::cout<<"flag2"<<std::endl;
-    pres500->GetXaxis()->SetTitle("m_{gen} [GeV]");
-    pres500->GetYaxis()->SetTitle("a.u.");
-    pres500->Draw();
-    pres750->Draw("same");
-    pres1000->Draw("same");
-    pres1250->Draw("same");
-    pres1500->Draw("same");
-    pres1750->Draw("same");
-    pres2000->Draw("same");
-    pres2250->Draw("same");
-    pres2500->Draw("same");
-    pres2750->Draw("same");
-    pres3000->Draw("same");
-    //    pres3250->Draw("same");
-    //pres3500->Draw("same");
-    pres3750->Draw("same");
-    pres4000->Draw("same");
-    std::cout<<"flag2"<<std::endl;
+    pres->GetXaxis()->SetTitle("m_{#gamma#gamma} [GeV]");
+    pres->GetYaxis()->SetTitle("a.u.");
+    pres->Draw();
     legmc->Draw("same");
-    c1->SaveAs(TString::Format("~/www/Pippone/Response/genMassAllMasses_k"+coupling+"_cat%d.png",c));
-    c1->SaveAs(TString::Format("~/www/Pippone/Response/genMassAllMasses_k"+coupling+"_cat%d.pdf",c));
+    c1->SaveAs(TString::Format("~/www/Pippone/CompareRelease_M_"+mass+"_k"+coupling+"_cat%d.png",c));
+    c1->SaveAs(TString::Format("~/www/Pippone/CompareRelease_M_"+mass+"_kk"+coupling+"_cat%d.pdf",c));
     c1->SetLogy();
-    c1->SaveAs(TString::Format("~/www/Pippone/Response/genMassAllMasses_k"+coupling+"_cat%d_log.png",c));
-    c1->SaveAs(TString::Format("~/www/Pippone/Response/genMassAllMasses_k"+coupling+"_cat%d_log.pdf",c));
+    c1->SaveAs(TString::Format("~/www/Pippone/CompareRelease_M_"+mass+"_kk"+coupling+"_cat%d_log.png",c));
+    c1->SaveAs(TString::Format("~/www/Pippone/CompareRelease_M_"+mass+"_kk"+coupling+"_cat%d_log.pdf",c));
     c1->SetLogy(0);
 
   
